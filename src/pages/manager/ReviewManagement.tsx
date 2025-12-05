@@ -1,16 +1,59 @@
-import { useState } from 'react';
-import { Plus, Edit2, Trash2, Star } from 'lucide-react';
-import { mockReviews, Review } from '../../data/mockData';
+import { useState, useEffect } from 'react';
+import { Plus, Edit2, Trash2, Star, CheckCircle, XCircle } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
+import { getAllReviews, createReview, updateReview, deleteReview, approveReview, rejectReview, ReviewResponse } from '../../service/reviewService';
+
+interface Review {
+  id: string;
+  bookId: string;
+  userId: string;
+  rating: number;
+  comment: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+}
 
 export default function ReviewManagement() {
-    const [review, setReview] = useState(mockReviews);
+    const [review, setReview] = useState<Review[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<Review | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        fetchReviews();
+    }, []);
+
+    const fetchReviews = async () => {
+        try {
+            setIsLoading(true);
+            setError('');
+            const response = await getAllReviews(1, 10);
+            
+            // Transform API response to match Review interface
+            const transformedData = (response.items || []).map((rev: ReviewResponse) => ({
+                id: rev.id || '',
+                bookId: rev.bookId || '',
+                userId: rev.userId || '',
+                rating: rev.rating || 0,
+                comment: rev.comment || '',
+                status: rev.status || 'pending',
+                createdAt: rev.createdAt || new Date().toISOString(),
+            }));
+            
+            setReview(transformedData);
+        } catch (err) {
+            console.error('Failed to fetch reviews:', err);
+            setError('Không thể tải danh sách đánh giá');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const [formData, setFormData] = useState({
         comment: '',
@@ -20,15 +63,15 @@ export default function ReviewManagement() {
         status: 'pending' as 'pending' | 'approved' | 'rejected'
     });
 
-    const handleOpenModal = (review?: Review) => {
-        if (review) {
-            setSelectedCategory(review);
+    const handleOpenModal = (rev?: Review) => {
+        if (rev) {
+            setSelectedCategory(rev);
             setFormData({
-                comment: review.comment,
-                bookId: review.bookId,
-                userId: review.userId,
-                rating: review.rating,
-                status: review.status
+                comment: rev.comment,
+                bookId: rev.bookId,
+                userId: rev.userId,
+                rating: rev.rating,
+                status: rev.status
             });
         } else {
             setSelectedCategory(null);
@@ -43,30 +86,96 @@ export default function ReviewManagement() {
         setIsModalOpen(true);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError('');
+        setIsSubmitting(true);
 
-        if (selectedCategory) {
-            setReview(
-                review.map((review) =>
-                    review.id === selectedCategory.id ? { ...review, ...formData } : review
-                )
-            );
-        } else {
-            const newReview: Review = {
-                id: String(review.length + 1),
-                ...formData,
-                createdAt: new Date().toISOString(),
+        try {
+            const payload = {
+                bookId: formData.bookId,
+                userId: formData.userId,
+                rating: formData.rating,
+                comment: formData.comment,
+                status: formData.status,
             };
-            setReview([...review, newReview]);
-        }
 
-        setIsModalOpen(false);
+            if (selectedCategory) {
+                await updateReview(selectedCategory.id, payload);
+                alert('Cập nhật đánh giá thành công!');
+            } else {
+                await createReview(payload);
+                alert('Tạo đánh giá thành công!');
+            }
+
+            setIsModalOpen(false);
+            await fetchReviews();
+        } catch (err) {
+            console.error('Error saving review:', err);
+            setError('Không thể lưu đánh giá');
+            alert('Lỗi: Không thể lưu đánh giá');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    const handleDelete = (categoryId: string) => {
-        if (confirm('Bạn có chắc chắn muốn xóa đánh giá này không?')) {
-            setReview(review.filter((review) => review.id !== categoryId));
+    const handleDelete = async (reviewId: string) => {
+        if (!confirm('Bạn có chắc chắn muốn xóa đánh giá này không?')) {
+            return;
+        }
+
+        try {
+            setIsSubmitting(true);
+            setError('');
+            await deleteReview(reviewId);
+            await fetchReviews();
+            alert('Xóa đánh giá thành công!');
+        } catch (err) {
+            console.error('Error deleting review:', err);
+            setError('Không thể xóa đánh giá');
+            alert('Lỗi: Không thể xóa đánh giá');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleApprove = async (reviewId: string) => {
+        if (!confirm('Bạn có chắc chắn muốn phê duyệt đánh giá này không?')) {
+            return;
+        }
+
+        try {
+            setIsSubmitting(true);
+            setError('');
+            await approveReview(reviewId);
+            await fetchReviews();
+            alert('Phê duyệt đánh giá thành công!');
+        } catch (err) {
+            console.error('Error approving review:', err);
+            setError('Không thể phê duyệt đánh giá');
+            alert('Lỗi: Không thể phê duyệt đánh giá');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleReject = async (reviewId: string) => {
+        if (!confirm('Bạn có chắc chắn muốn từ chối đánh giá này không?')) {
+            return;
+        }
+
+        try {
+            setIsSubmitting(true);
+            setError('');
+            await rejectReview(reviewId);
+            await fetchReviews();
+            alert('Từ chối đánh giá thành công!');
+        } catch (err) {
+            console.error('Error rejecting review:', err);
+            setError('Không thể từ chối đánh giá');
+            alert('Lỗi: Không thể từ chối đánh giá');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -116,19 +225,39 @@ export default function ReviewManagement() {
         {
             key: 'actions',
             header: 'Hành động',
-            render: (author: Review) => (
+            render: (rev: Review) => (
                 <div className="flex gap-2">
+                    {rev.status === 'pending' && (
+                        <>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleApprove(rev.id)}
+                                className="text-green-600 hover:text-green-700"
+                            >
+                                <CheckCircle className="w-4 h-4" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleReject(rev.id)}
+                                className="text-red-600 hover:text-red-700"
+                            >
+                                <XCircle className="w-4 h-4" />
+                            </Button>
+                        </>
+                    )}
                     <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleOpenModal(author)}
+                        onClick={() => handleOpenModal(rev)}
                     >
                         <Edit2 className="w-4 h-4" />
                     </Button>
                     <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleDelete(author.id)}
+                        onClick={() => handleDelete(rev.id)}
                     >
                         <Trash2 className="w-4 h-4 text-red-500" />
                     </Button>
@@ -136,6 +265,10 @@ export default function ReviewManagement() {
             ),
         },
     ];
+
+    if (isLoading) {
+        return <div className="text-center py-10">Đang tải...</div>;
+    }
 
     return (
         <div className="space-y-6">
@@ -149,6 +282,12 @@ export default function ReviewManagement() {
                     Thêm đánh giá
                 </Button>
             </div>
+
+            {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                    {error}
+                </div>
+            )}
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <Input

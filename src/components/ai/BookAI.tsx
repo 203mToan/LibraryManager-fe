@@ -9,7 +9,6 @@
 
 import { useState, useEffect } from 'react';
 import { Sparkles, MessageSquare, Send, Lightbulb } from 'lucide-react';
-import { Book } from '../../data/mockData';
 import Button from '../ui/Button';
 import Select from '../ui/Select';
 import { motion } from 'framer-motion';
@@ -20,6 +19,23 @@ import {
   getCachedSummary,
   cacheSummary
 } from '../../service/aiBookService';
+
+interface Book {
+  id: string;
+  title: string;
+  authorId: string;
+  categoryId: string;
+  isbn: string;
+  publisher: string;
+  publishYear: number;
+  pages: number;
+  quantity: number;
+  available: number;
+  description: string;
+  coverUrl: string;
+  sumarry: string;
+  createdAt: string;
+}
 
 interface BookAIProps {
   book: Book;

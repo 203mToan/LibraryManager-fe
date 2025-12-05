@@ -1,16 +1,29 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, User as UserIcon, Mail, Shield } from 'lucide-react';
-import { mockUsers, User } from '../../data/mockData';
 import Button from '../../components/ui/Button';
 import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
+import { getAllUsers, createUser, updateUser, deleteUser, UserResponse } from '../../service/userService';
+
+interface User {
+    id: string;
+    name: string;
+    email: string;
+    password?: string;
+    role: 'manager' | 'borrower';
+    avatar?: string;
+    createdAt: string;
+}
 
 export default function UserManagement() {
-    const [users, setUsers] = useState(mockUsers);
+    const [users, setUsers] = useState<User[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [formData, setFormData] = useState({
         name: '',
@@ -20,13 +33,44 @@ export default function UserManagement() {
         avatar: ''
     });
 
+    // Fetch users on component mount
+    useEffect(() => {
+        fetchUsers(1, 10);
+    }, []);
+
+    const fetchUsers = async (page: number, size: number) => {
+        try {
+            setIsLoading(true);
+            setError('');
+            const response = await getAllUsers(page, size);
+
+            // Transform API response to match User interface
+            const transformedData = (response.items || []).map((user: UserResponse) => ({
+                id: user.id || '',
+                name: user.fullName || '',
+                email: user.email || '',
+                password: '',
+                role: ((user.role || 'User').toLowerCase() === 'admin' ? 'manager' : 'borrower') as 'manager' | 'borrower',
+                avatar: user.avatar || '',
+                createdAt: user.createdAt || new Date().toISOString(),
+            }));
+
+            setUsers(transformedData);
+        } catch (err) {
+            console.error('Failed to fetch users:', err);
+            setError('Không thể tải danh sách người dùng');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const handleOpenModal = (user?: User) => {
         if (user) {
             setSelectedUser(user);
             setFormData({
                 name: user.name,
                 email: user.email,
-                password: user.password,
+                password: '',
                 role: user.role,
                 avatar: user.avatar || ''
             });
@@ -43,30 +87,60 @@ export default function UserManagement() {
         setIsModalOpen(true);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError('');
+        setIsSubmitting(true);
 
-        if (selectedUser) {
-            setUsers(
-                users.map((user) =>
-                    user.id === selectedUser.id ? { ...user, ...formData } : user
-                )
-            );
-        } else {
-            const newUser: User = {
-                id: String(users.length + 1),
-                ...formData,
-                createdAt: new Date().toISOString(),
+        try {
+            const payload = {
+                fullName: formData.name,
+                email: formData.email,
+                userName: formData.email, // Use email as username
+                avatar: formData.avatar,
+                role: formData.role === 'manager' ? 'Admin' : 'User',
             };
-            setUsers([...users, newUser]);
-        }
 
-        setIsModalOpen(false);
+            if (selectedUser) {
+                await updateUser(selectedUser.id, payload);
+                alert('Cập nhật người dùng thành công!');
+            } else {
+                await createUser({
+                    ...payload,
+                    phoneNumber: '',
+                    address: '',
+                });
+                alert('Tạo người dùng thành công!');
+            }
+
+            setIsModalOpen(false);
+            await fetchUsers(1, 10);
+        } catch (err) {
+            console.error('Error saving user:', err);
+            setError('Không thể lưu người dùng');
+            alert('Lỗi: Không thể lưu người dùng');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    const handleDelete = (userId: string) => {
-        if (confirm('Bạn có chắc chắn muốn xóa người dùng này không?')) {
-            setUsers(users.filter((user) => user.id !== userId));
+    const handleDelete = async (userId: string) => {
+        if (!confirm('Bạn có chắc chắn muốn xóa người dùng này không?')) {
+            return;
+        }
+
+        try {
+            setIsSubmitting(true);
+            setError('');
+            await deleteUser(userId);
+            await fetchUsers(1, 10);
+            alert('Xóa người dùng thành công!');
+        } catch (err) {
+            console.error('Error deleting user:', err);
+            setError('Không thể xóa người dùng');
+            alert('Lỗi: Không thể xóa người dùng');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -114,8 +188,8 @@ export default function UserManagement() {
                 <div className="flex items-center gap-2">
                     <Shield className={`w-4 h-4 ${user.role === 'manager' ? 'text-purple-600' : 'text-gray-400'}`} />
                     <span className={`px-3 py-1 text-xs font-medium rounded-full ${user.role === 'manager'
-                            ? 'bg-purple-100 text-purple-700'
-                            : 'bg-gray-100 text-gray-700'
+                        ? 'bg-purple-100 text-purple-700'
+                        : 'bg-gray-100 text-gray-700'
                         }`}>
                         {user.role === 'manager' ? 'Quản lý' : 'Thành viên'}
                     </span>
@@ -159,8 +233,12 @@ export default function UserManagement() {
         },
     ];
 
+    if (isLoading) {
+        return <div className="text-center py-10">Đang tải...</div>;
+    }
+
     return (
-        <div className="">
+        <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">Quản lý người dùng</h1>
@@ -171,6 +249,12 @@ export default function UserManagement() {
                     Thêm người dùng
                 </Button>
             </div>
+
+            {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                    {error}
+                </div>
+            )}
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <Input
@@ -263,7 +347,12 @@ export default function UserManagement() {
                         >
                             Hủy
                         </Button>
-                        <Button type="submit">{selectedUser ? 'Cập nhật người dùng' : 'Tạo người dùng'}</Button>
+                        <Button
+                            type="submit"
+                            disabled={isSubmitting}
+                        >
+                            {isSubmitting ? 'Đang lưu...' : (selectedUser ? 'Cập nhật người dùng' : 'Tạo người dùng')}
+                        </Button>
                     </div>
                 </form>
             </Modal>

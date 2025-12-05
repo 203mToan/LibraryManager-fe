@@ -10,8 +10,8 @@ interface LoginPageProps {
 }
 
 export default function LoginPage({ onSwitchToRegister }: LoginPageProps) {
-  const [email, setEmail] = useState('manager@library.com');
-  const [password, setPassword] = useState('manager123');
+  const [email, setEmail] = useState('admin');
+  const [password, setPassword] = useState('admin');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
@@ -52,9 +52,9 @@ export default function LoginPage({ onSwitchToRegister }: LoginPageProps) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            type="email"
-            label="Email"
-            placeholder="your@email.com"
+            type="text"
+            label="Tên đăng nhập"
+            placeholder="admin"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -62,7 +62,7 @@ export default function LoginPage({ onSwitchToRegister }: LoginPageProps) {
 
           <Input
             type="password"
-            label="Password"
+            label="Mật khẩu"
             placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -98,8 +98,7 @@ export default function LoginPage({ onSwitchToRegister }: LoginPageProps) {
 
         <div className="mt-8 p-4 bg-gray-50 rounded-lg">
           <p className="text-xs text-gray-500 font-medium mb-2">Tài khoản demo:</p>
-          <p className="text-xs text-gray-600">Quản lý: manager@library.com / manager123</p>
-          <p className="text-xs text-gray-600">Thành viên: john@example.com / john123</p>
+          <p className="text-xs text-gray-600">Quản lý: admin / admin</p>
         </div>
       </motion.div>
     </div>

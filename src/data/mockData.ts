@@ -52,7 +52,7 @@ export interface Loan {
   returnDate?: string;
   renewCount: number;
   status: 'pending' | 'approved' | 'returned' | 'overdue';
-  fine: number;
+  fineAmount: number;
 }
 
 export interface Review {
@@ -260,7 +260,7 @@ export const mockLoans: Loan[] = [
     returnDate: '2024-11-14T10:00:00Z',
     renewCount: 0,
     status: 'returned',
-    fine: 0,
+    fineAmount: 0,
   },
   {
     id: '2',
@@ -271,7 +271,7 @@ export const mockLoans: Loan[] = [
     dueDate: '2024-11-24T23:59:59Z',
     renewCount: 0,
     status: 'approved',
-    fine: 0,
+    fineAmount: 0,
   },
   {
     id: '3',
@@ -280,7 +280,7 @@ export const mockLoans: Loan[] = [
     requestDate: '2024-11-15T15:00:00Z',
     status: 'pending',
     renewCount: 0,
-    fine: 0,
+    fineAmount: 0,
   },
   {
     id: '4',
@@ -291,7 +291,7 @@ export const mockLoans: Loan[] = [
     dueDate: '2024-11-03T23:59:59Z',
     renewCount: 1,
     status: 'overdue',
-    fine: 14,
+    fineAmount: 14,
   },
 ];
 

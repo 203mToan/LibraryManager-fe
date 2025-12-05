@@ -1,16 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
-import { mockAuthors, Author } from '../../data/mockData';
 import Button from '../../components/ui/Button';
+
+interface Author {
+    id: string;
+    name?: string;
+    fullName: string;
+    bio?: string;
+    birthYear?: number;
+    nationality?: string;
+    bookCount?: number;
+    createdAt?: string;
+}
 import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
+import { getAllAuthors, createAuthor, updateAuthor, deleteAuthor } from '../../service/authorService';
 
 export default function AuthorsManagement() {
-  const [authors, setAuthors] = useState(mockAuthors);
+  const [authors, setAuthors] = useState<Author[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAuthor, setSelectedAuthor] = useState<Author | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -19,11 +36,45 @@ export default function AuthorsManagement() {
     nationality: '',
   });
 
+  // Fetch authors on component mount
+  useEffect(() => {
+    fetchAuthors(currentPage, pageSize);
+  }, [currentPage, pageSize]);
+
+  const fetchAuthors = async (page: number, size: number) => {
+    try {
+      setIsLoading(true);
+      setError('');
+      const response = await getAllAuthors(page, size);
+      
+      // Transform API response to match Author interface
+      const transformedData = (response.items || []).map((author: any) => ({
+        id: author.id || '',
+        name: author.fullName || author.name || '',
+        fullName: author.fullName || author.name || '',
+        bio: author.bio || '',
+        birthYear: author.birthYear,
+        nationality: author.nationality || '',
+        bookCount: author.bookCount || 0,
+        createdAt: author.createdAt || new Date().toISOString(),
+      }));
+      
+      setAuthors(transformedData);
+      setTotalPages(response.totalPages || 1);
+      setTotalItems(response.totalItems || 0);
+    } catch (err) {
+      console.error('Failed to fetch authors:', err);
+      setError('Không thể tải danh sách tác giả');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleOpenModal = (author?: Author) => {
     if (author) {
       setSelectedAuthor(author);
       setFormData({
-        name: author.name,
+        name: author.name || author.fullName || '',
         bio: author.bio || '',
         birthYear: author.birthYear || new Date().getFullYear() - 30,
         nationality: author.nationality || '',
@@ -40,41 +91,50 @@ export default function AuthorsManagement() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
 
-    if (selectedAuthor) {
-      setAuthors(
-        authors.map((author) =>
-          author.id === selectedAuthor.id ? { ...author, ...formData } : author
-        )
-      );
-    } else {
-      const newAuthor: Author = {
-        id: String(authors.length + 1),
-        ...formData,
-        createdAt: new Date().toISOString(),
+    try {
+      const payload = {
+        fullName: formData.name,
+        bio: formData.bio,
+        id: selectedAuthor?.id ?? null
       };
-      setAuthors([...authors, newAuthor]);
-    }
 
-    setIsModalOpen(false);
+      if (selectedAuthor) {
+        await updateAuthor(payload);
+      } else {
+        await createAuthor(payload);
+      }
+
+      setIsModalOpen(false);
+      await fetchAuthors(currentPage, pageSize);
+    } catch (err) {
+      console.error('Error saving author:', err);
+      setError('Không thể lưu tác giả');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDelete = (authorId: string) => {
+  const handleDelete = async (authorId: string) => {
     if (confirm('Bạn có chắc chắn muốn xóa tác giả này không?')) {
-      setAuthors(authors.filter((author) => author.id !== authorId));
+      try {
+        setError('');
+        await deleteAuthor(authorId);
+        await fetchAuthors(currentPage, pageSize);
+      } catch (err) {
+        console.error('Error deleting author:', err);
+        setError('Không thể xóa tác giả');
+      }
     }
   };
-
-  const filteredAuthors = authors.filter((author) =>
-    author.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   const columns = [
     { key: 'name', header: 'Tên' },
-    { key: 'nationality', header: 'Quốc tịch' },
-    { key: 'birthYear', header: 'Năm sinh' },
+    { key: 'bookCount', header: 'Số sách' },
     {
       key: 'actions',
       header: 'Hành động',
@@ -113,13 +173,66 @@ export default function AuthorsManagement() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <Input
-          placeholder="Tìm tác giả..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="mb-4"
-        />
-        <Table columns={columns} data={filteredAuthors} />
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+            {error}
+          </div>
+        )}
+        {isLoading ? (
+          <div className="text-center py-8 text-gray-500">Đang tải...</div>
+        ) : (
+          <>
+            <Table columns={columns} data={authors} />
+            
+            {/* Pagination Controls */}
+            <div className="mt-6 flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Hiển thị {authors.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} đến{' '}
+                {Math.min(currentPage * pageSize, totalItems)} của {totalItems} tác giả
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(parseInt(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="5">5 / trang</option>
+                  <option value="10">10 / trang</option>
+                  <option value="20">20 / trang</option>
+                  <option value="50">50 / trang</option>
+                </select>
+                
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1 || isLoading}
+                  >
+                    Trước
+                  </Button>
+                  
+                  <div className="flex items-center gap-1 px-3 py-2">
+                    <span className="text-sm font-medium">Trang {currentPage} / {totalPages}</span>
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages || isLoading}
+                  >
+                    Tiếp
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <Modal
@@ -128,6 +241,11 @@ export default function AuthorsManagement() {
         title={selectedAuthor ? 'Chỉnh sửa tác giả' : 'Thêm tác giả mới'}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+              {error}
+            </div>
+          )}
           <Input
             label="Tên"
             value={formData.name}
@@ -167,10 +285,13 @@ export default function AuthorsManagement() {
               type="button"
               variant="outline"
               onClick={() => setIsModalOpen(false)}
+              disabled={isSubmitting}
             >
               Hủy
             </Button>
-            <Button type="submit">{selectedAuthor ? 'Cập nhật' : 'Tạo'}</Button>
+            <Button type="submit" isLoading={isSubmitting}>
+              {selectedAuthor ? 'Cập nhật' : 'Tạo'}
+            </Button>
           </div>
         </form>
       </Modal>

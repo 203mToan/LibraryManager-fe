@@ -196,7 +196,7 @@ This is a demonstration project. To make it production-ready, consider:
 - **Real AI**: Integrate OpenAI API for actual AI features
 - **File Upload**: Implement actual image upload for book covers
 - **Email Notifications**: Send emails for loan approvals, due dates, and overdue books
-- **Payment Gateway**: Integrate Stripe/PayPal for fine payments
+- **Payment Gateway**: Integrate Stripe/PayPal for fineAmount payments
 - **Advanced Search**: Full-text search with filters
 - **Barcode Scanning**: For physical book management
 - **Reports**: Advanced analytics and data visualization

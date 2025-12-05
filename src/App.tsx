@@ -62,8 +62,8 @@ function MainApp() {
         case 'reports':
           return (
             <div className="p-6">
-              <h1 className="text-3xl font-bold">Reports & Analytics</h1>
-              <p className="text-gray-600 mt-2">View library statistics (Coming Soon)</p>
+              <h1 className="text-3xl font-bold">Báo cáo và thống kê</h1>
+              <p className="text-gray-600 mt-2">Xem thống kê thư viện (Sắp ra mắt)</p>
             </div>
           );
         default:
@@ -78,15 +78,15 @@ function MainApp() {
         case 'my-reviews':
           return (
             <div className="p-6">
-              <h1 className="text-3xl font-bold">My Reviews</h1>
-              <p className="text-gray-600 mt-2">Manage your book reviews (Coming Soon)</p>
+              <h1 className="text-3xl font-bold">Đánh giá của tôi</h1>
+              <p className="text-gray-600 mt-2">Quản lý đánh giá sách của bạn (Sắp ra mắt)</p>
             </div>
           );
         case 'profile':
           return (
             <div className="p-6">
-              <h1 className="text-3xl font-bold">My Profile</h1>
-              <p className="text-gray-600 mt-2">Update your profile settings (Coming Soon)</p>
+              <h1 className="text-3xl font-bold">Hồ sơ của tôi</h1>
+              <p className="text-gray-600 mt-2">Cập nhật cài đặt hồ sơ của bạn (Sắp ra mắt)</p>
             </div>
           );
         default:
