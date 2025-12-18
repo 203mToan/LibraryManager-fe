@@ -1,15 +1,23 @@
 import axiosInstance from './api';
 
+/* =======================
+   Interfaces
+======================= */
+
 export interface AuthorPayload {
   fullName: string;
   bio: string;
-  id?: any;
+  birthYear?: number;
+  nationality?: string;
+  id?: string | null;
 }
 
 export interface AuthorResponse {
   id: string;
   fullName: string;
   bio: string;
+  birthYear?: number;
+  nationality?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -17,43 +25,42 @@ export interface AuthorResponse {
 export interface PaginatedResponse<T> {
   items: T[];
   totalItems: number;
-  pageSize: number | null;
+  pageSize: number;
   totalPages: number;
 }
 
-// Get all authors with pagination
+/* =======================
+   Services
+======================= */
+
+/**
+ * FE pagination (backend chưa hỗ trợ)
+ */
 export const getAllAuthors = async (
-  page?: number,
-  pageSize?: number
+  page: number = 1,
+  pageSize: number = 10
 ): Promise<PaginatedResponse<AuthorResponse>> => {
   try {
-    let url = '/api/author';
-    const params = new URLSearchParams();
-    
-    if (page !== undefined && page > 0) {
-      params.append('page', page.toString());
-    }
-    if (pageSize !== undefined && pageSize > 0) {
-      params.append('pageSize', pageSize.toString());
-    }
-    
-    if (params.toString()) {
-      url += `?${params.toString()}`;
-    }
+    // Backend hiện tại trả về TOÀN BỘ authors
+    const response = await axiosInstance.get('/api/author');
 
-    const response = await axiosInstance.get(url);
-    
-    // Handle both paginated and non-paginated responses
-    if (response.data.items) {
-      return response.data;
-    }
-    
-    // If it's just an array, wrap it in pagination response
+    const allItems: AuthorResponse[] = Array.isArray(response.data?.items)
+      ? response.data.items 
+      : [];
+
+    const totalItems = allItems.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+
+    const items = allItems.slice(startIndex, endIndex);
+
     return {
-      items: response.data || [],
-      totalItems: (response.data || []).length,
-      pageSize: null,
-      totalPages: 1,
+      items,
+      totalItems,
+      pageSize,
+      totalPages,
     };
   } catch (error) {
     console.error('Error fetching authors:', error);
@@ -61,7 +68,9 @@ export const getAllAuthors = async (
   }
 };
 
-// Get author by ID
+/**
+ * Get author by ID
+ */
 export const getAuthorById = async (id: string): Promise<AuthorResponse> => {
   try {
     const response = await axiosInstance.get(`/api/author/${id}`);
@@ -72,8 +81,12 @@ export const getAuthorById = async (id: string): Promise<AuthorResponse> => {
   }
 };
 
-// Create new author
-export const createAuthor = async (payload: AuthorPayload): Promise<AuthorResponse> => {
+/**
+ * Create author
+ */
+export const createAuthor = async (
+  payload: AuthorPayload
+): Promise<AuthorResponse> => {
   try {
     const response = await axiosInstance.post('/api/author', payload);
     return response.data;
@@ -83,12 +96,14 @@ export const createAuthor = async (payload: AuthorPayload): Promise<AuthorRespon
   }
 };
 
-// Update author
+/**
+ * Update author
+ */
 export const updateAuthor = async (
   payload: AuthorPayload
 ): Promise<AuthorResponse> => {
   try {
-    const response = await axiosInstance.put(`/api/author`, payload);
+    const response = await axiosInstance.put('/api/author', payload);
     return response.data;
   } catch (error) {
     console.error('Error updating author:', error);
@@ -96,7 +111,9 @@ export const updateAuthor = async (
   }
 };
 
-// Delete author
+/**
+ * Delete author
+ */
 export const deleteAuthor = async (id: string): Promise<void> => {
   try {
     await axiosInstance.delete(`/api/author/${id}`);

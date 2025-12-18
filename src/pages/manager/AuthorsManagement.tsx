@@ -99,6 +99,8 @@ export default function AuthorsManagement() {
     try {
       const payload = {
         fullName: formData.name,
+        nationality: formData.nationality,
+        birthYear: formData.birthYear,
         bio: formData.bio,
         id: selectedAuthor?.id ?? null
       };
