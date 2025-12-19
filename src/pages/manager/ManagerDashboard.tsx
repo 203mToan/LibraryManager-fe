@@ -24,6 +24,7 @@ export default function ManagerDashboard() {
   const [books, setBooks] = useState<Book[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loans, setLoans] = useState<LoanResponse[]>([]);
+  const [totalBooks, setTotalBooks] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -53,6 +54,7 @@ export default function ManagerDashboard() {
         // }));
 
         setBooks(booksData);
+        setTotalBooks(booksRes.totalItems || 0);
         // setUsers(usersData);
         setLoans(loansRes || []);
       } catch (error) {
@@ -64,11 +66,12 @@ export default function ManagerDashboard() {
 
     fetchDashboardData();
   }, []);
-
-  const totalBooks = books.reduce((sum, book) => sum + (book.quantity || 0), 0);
   const totalBorrowers = users.filter((u) => u.role === 'borrower').length;
   const activeLoans = loans.filter(
-    (l) => l.status === 'Approved' || l.status === 'overdue'
+    (l) => l.status === 'Pending'
+  ).length;
+  const approvedLoans = loans.filter(
+    (l) => l.status === 'Approved'
   ).length;
 
   const stats = [
@@ -88,12 +91,27 @@ export default function ManagerDashboard() {
     },
     {
       label: 'Người mượn',
-      value: totalBorrowers,
+      value: approvedLoans,
       icon: Users,
       color: 'from-purple-500 to-pink-600',
       bgColor: 'bg-purple-50',
     },
   ];
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'Pending':
+        return 'Đang chờ duyệt';
+      case 'Approved':
+        return 'Đã phê duyệt';
+      case 'Returned':
+        return 'Đã trả';
+      case 'overdue':
+        return 'Quá hạn';
+      default:
+        return status;
+    }
+  };
 
   const recentLoans = [...loans]
     .sort((a, b) => new Date(b.loanDate || '').getTime() - new Date(a.loanDate || '').getTime())
@@ -102,7 +120,7 @@ export default function ManagerDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Bảng điều khiển</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Trang Chủ</h1>
         <p className="text-gray-600 mt-1">Chào mừng trở lại! Tổng quan thư viện của bạn.</p>
       </div>
 
@@ -145,29 +163,28 @@ export default function ManagerDashboard() {
               <h2 className="text-xl font-bold text-gray-900 mb-4">Yêu cầu mượn gần đây</h2>
               <div className="space-y-3">
                 {recentLoans.map((loan) => {
-                  const book = books.find((b) => b.id === loan.bookId);
-                  const user = users.find((u) => u.id === loan.userId);
-
                   return (
                     <div
                       key={loan.id}
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                     >
                       <div>
-                        <p className="font-medium text-gray-900">{book?.title || 'N/A'}</p>
-                        <p className="text-sm text-gray-600">{user?.name || 'N/A'}</p>
+                        <p className="font-medium text-gray-900">{loan.bookName || 'N/A'}</p>
+                        <p className="text-sm text-gray-600">{loan.userName || 'N/A'}</p>
                       </div>
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-medium ${loan.status === 'Pending'
                             ? 'bg-yellow-100 text-yellow-800'
                             : loan.status === 'Approved'
                               ? 'bg-green-100 text-green-800'
+                              : loan.status === 'Returned'
+                                ? 'bg-blue-100 text-blue-800'
                               : loan.status === 'overdue'
                                 ? 'bg-red-100 text-red-800'
                                 : 'bg-gray-100 text-gray-800'
                           }`}
                       >
-                        {loan.status}
+                        {getStatusText(loan.status)}
                       </span>
                     </div>
                   );
@@ -183,28 +200,57 @@ export default function ManagerDashboard() {
             >
               <h2 className="text-xl font-bold text-gray-900 mb-4">Sách phổ biến</h2>
               <div className="space-y-3">
-                {books.slice(0, 5).map((book, index) => (
-                  <div
-                    key={book.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg font-bold text-gray-400">#{index + 1}</span>
-                      <div>
-                        <p className="font-medium text-gray-900">{book.title}</p>
-                        <p className="text-sm text-gray-600">
-                          {(book.quantity || 0) - (book.available || 0)} đã được mượn
+                {books
+                  .map((book) => {
+                    const approvedCount = loans.filter(
+                      (l) => l.bookId === book.id && l.status === 'Approved'
+                    ).length;
+                    const returnedCount = loans.filter(
+                      (l) => l.bookId === book.id && l.status === 'Returned'
+                    ).length;
+                    const pendingCount = loans.filter(
+                      (l) => l.bookId === book.id && l.status === 'Pending'
+                    ).length;
+
+                    return {
+                      ...book,
+                      approvedCount,
+                      returnedCount,
+                      pendingCount,
+                      borrowedTotal: approvedCount + returnedCount,
+                    };
+                  })
+                  .sort((a, b) => {
+                    // Sắp xếp theo số lượng đã được mượn giảm dần
+                    if (b.borrowedTotal !== a.borrowedTotal) {
+                      return b.borrowedTotal - a.borrowedTotal;
+                    }
+                    // Nếu bằng nhau, sắp xếp theo số lượng đang chờ duyệt giảm dần
+                    return b.pendingCount - a.pendingCount;
+                  })
+                  .slice(0, 5)
+                  .map((book, index) => (
+                    <div
+                      key={book.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg font-bold text-gray-400">#{index + 1}</span>
+                        <div>
+                          <p className="font-medium text-gray-900">{book.title}</p>
+                          <p className="text-sm text-gray-600">
+                            {book.borrowedTotal} đã được mượn
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-teal-600">
+                          {book.quantity || 0}
                         </p>
+                        <p className="text-xs text-gray-500">có sẵn</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-teal-600">
-                        {book.quantity || 0}
-                      </p>
-                      <p className="text-xs text-gray-500">có sẵn</p>
-                    </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </motion.div>
           </div>

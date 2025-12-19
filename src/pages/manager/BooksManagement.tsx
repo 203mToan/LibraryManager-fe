@@ -246,11 +246,17 @@ export default function BooksManagement() {
     }
   };
 
-  const filteredBooks = books.filter(
-    (book) =>
-      book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      book.publisher.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredBooks = books.filter((book) => {
+    const searchLower = searchQuery.toLowerCase();
+    const author = authors.find((a) => a.id === book.authorId);
+    const category = categories.find((c) => c.id === book.categoryId);
+    
+    return (
+      book.title.toLowerCase().includes(searchLower) ||
+      (author?.fullName || '').toLowerCase().includes(searchLower) ||
+      (category?.name || '').toLowerCase().includes(searchLower)
+    );
+  });
 
   const columns = [
     {
@@ -353,7 +359,7 @@ export default function BooksManagement() {
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
         <Input
-          placeholder="Tìm theo tiêu đề hoặc nhà xuất bản..."
+          placeholder="Tìm theo tiêu đề, tác giả hoặc thể loại..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="mb-4"

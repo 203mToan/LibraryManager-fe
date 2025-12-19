@@ -11,7 +11,7 @@ export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
   const { user, logout } = useAuth();
 
   const managerMenuItems = [
-    { id: 'dashboard', label: 'Bảng điều khiển', icon: Home },
+    { id: 'dashboard', label: 'Trang chủ', icon: Home },
     { id: 'books', label: 'Sách', icon: BookOpen },
     { id: 'authors', label: 'Tác giả', icon: Users },
     { id: 'categories', label: 'Thể loại', icon: FolderTree },
@@ -22,8 +22,8 @@ export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
   ];
 
   const borrowerMenuItems = [
-    { id: 'browse', label: 'Duyệt sách', icon: BookOpen },
-    { id: 'my-loans', label: 'Khoản mượn của tôi', icon: BookMarked },
+    { id: 'browse', label: 'Trang chủ', icon: BookOpen },
+    { id: 'my-loans', label: 'Phiếu mượn của tôi', icon: BookMarked },
     { id: 'my-reviews', label: 'Đánh giá của tôi', icon: FileText },
     { id: 'profile', label: 'Hồ sơ', icon: UserCircle },
   ];
@@ -65,7 +65,7 @@ export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
 
       <div className="p-4 border-t border-slate-700">
         <div className="mb-3 px-2">
-          <p className="text-sm text-slate-400">Logged in as</p>
+          <p className="text-sm text-slate-400">Đăng nhập với tư cách</p>
           <p className="text-white font-medium">{user?.name}</p>
         </div>
         <motion.button
