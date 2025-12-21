@@ -35,9 +35,9 @@ export default function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
     e.preventDefault();
     setError('');
 
-    // Validation
+    // Validation - only required fields
     if (!formData.fullName || !formData.email || !formData.userName || !formData.phoneNumber || 
-        !formData.address || !formData.dateOfBirth || !formData.gender || !formData.nationalId || !formData.password) {
+        !formData.address || !formData.nationalId || !formData.password) {
       setError('Vui lòng điền tất cả các trường bắt buộc');
       return;
     }
@@ -56,15 +56,15 @@ export default function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
       setIsLoading(true);
 
       const payload = {
-        fullName: formData.fullName,
-        email: formData.email,
-        userName: formData.userName,
-        phoneNumber: formData.phoneNumber,
-        address: formData.address,
-        dateOfBirth: new Date(formData.dateOfBirth).toISOString(),
-        gender: formData.gender,
-        nationalId: formData.nationalId,
-        password: formData.password,
+        FullName: formData.fullName,
+        Email: formData.email,
+        UserName: formData.userName,
+        PhoneNumber: formData.phoneNumber,
+        Address: formData.address,
+        DateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth).toLocaleString('sv-SE') + '+00' : null,
+        Gender: formData.gender || null,
+        NationalId: formData.nationalId,
+        Password: formData.password,
       };
 
       await registerUser(payload);
@@ -173,23 +173,22 @@ export default function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
             <Input
               type="date"
               name="dateOfBirth"
-              label="Ngày sinh *"
+              label="Ngày sinh (tùy chọn)"
               value={formData.dateOfBirth}
               onChange={handleChange}
-              required
             />
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Giới tính *
+                Giới tính (tùy chọn)
               </label>
               <select
                 name="gender"
                 value={formData.gender}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                required
               >
+                <option value="">-- Chọn giới tính --</option>
                 <option value="Nam">Nam</option>
                 <option value="Nữ">Nữ</option>
                 <option value="Khác">Khác</option>

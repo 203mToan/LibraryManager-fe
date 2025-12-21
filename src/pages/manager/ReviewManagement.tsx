@@ -5,13 +5,17 @@ import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
 import { getAllReviews, createReview, updateReview, deleteReview, approveReview, rejectReview, ReviewResponse } from '../../service/reviewService';
+import { getBookById } from '../../service/bookService';
+import { getUserById } from '../../service/userService';
 
 interface Review {
   id: string;
   bookId: string;
   userId: string;
+  bookName: string;
+  userName: string;
   rating: number;
-  comment: string;
+  content: string;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
 }
@@ -24,32 +28,74 @@ export default function ReviewManagement() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [, setIsSubmitting] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
 
     useEffect(() => {
         fetchReviews();
-    }, []);
+    }, [currentPage, pageSize]);
 
     const fetchReviews = async () => {
         try {
             setIsLoading(true);
             setError('');
-            const response = await getAllReviews(1, 10);
+            console.log('Fetching reviews page:', currentPage, 'pageSize:', pageSize);
+            const response = await getAllReviews(currentPage, pageSize);
+            console.log('Raw API response:', response);
+            
+            // Get reviews data
+            const reviews = response.items || [];
+            console.log('Reviews data:', reviews);
+            
+            if (!reviews.length) {
+                console.log('No reviews found');
+                setReview([]);
+                setTotalPages(response.totalPages || 1);
+                setTotalItems(response.totalItems || 0);
+                setIsLoading(false);
+                return;
+            }
             
             // Transform API response to match Review interface
-            const transformedData = (response.items || []).map((rev: ReviewResponse) => ({
+            // NOTE: Currently bookName and userName are fetched from API response if available
+            // If backend returns bookTitle/userName, use those instead of fetching separately
+            const transformedData = reviews.map((rev: ReviewResponse) => ({
                 id: rev.id || '',
                 bookId: rev.bookId || '',
                 userId: rev.userId || '',
+                bookName: (rev as any).bookTitle || (rev as any).bookName || `Sách #${rev.bookId}`,
+                userName: (rev as any).userName || (rev as any).userFullName || `Người dùng #${rev.userId}`,
                 rating: rev.rating || 0,
-                comment: rev.comment || '',
+                content: rev.content || '',
                 status: rev.status || 'pending',
                 createdAt: rev.createdAt || new Date().toISOString(),
             }));
             
+            console.log('Transformed data:', transformedData);
             setReview(transformedData);
-        } catch (err) {
+            setTotalPages(response.totalPages || 1);
+            setTotalItems(response.totalItems || 0);
+            setSelectedIds(new Set());
+        } catch (err: any) {
             console.error('Failed to fetch reviews:', err);
-            setError('Không thể tải danh sách đánh giá');
+            
+            // Extract error message from backend or axios
+            let errorMsg = 'Không thể tải danh sách đánh giá';
+            if (err.response?.status === 401 || err.response?.status === 403) {
+                errorMsg = 'Bạn không có quyền truy cập. Vui lòng kiểm tra quyền Admin.';
+            } else if (err.response?.data) {
+                errorMsg = typeof err.response.data === 'string' 
+                    ? err.response.data.substring(0, 100) 
+                    : err.response.data?.message || errorMsg;
+            } else if (err.message) {
+                errorMsg = err.message;
+            }
+            
+            setError(errorMsg);
+            setReview([]);
         } finally {
             setIsLoading(false);
         }
@@ -67,7 +113,7 @@ export default function ReviewManagement() {
         if (rev) {
             setSelectedCategory(rev);
             setFormData({
-                comment: rev.comment,
+                comment: rev.content,
                 bookId: rev.bookId,
                 userId: rev.userId,
                 rating: rev.rating,
@@ -119,26 +165,6 @@ export default function ReviewManagement() {
         }
     };
 
-    const handleDelete = async (reviewId: string) => {
-        if (!confirm('Bạn có chắc chắn muốn xóa đánh giá này không?')) {
-            return;
-        }
-
-        try {
-            setIsSubmitting(true);
-            setError('');
-            await deleteReview(reviewId);
-            await fetchReviews();
-            alert('Xóa đánh giá thành công!');
-        } catch (err) {
-            console.error('Error deleting review:', err);
-            setError('Không thể xóa đánh giá');
-            alert('Lỗi: Không thể xóa đánh giá');
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
     const handleApprove = async (reviewId: string) => {
         if (!confirm('Bạn có chắc chắn muốn phê duyệt đánh giá này không?')) {
             return;
@@ -179,18 +205,78 @@ export default function ReviewManagement() {
         }
     };
 
+    const handleSelectItem = (id: string) => {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedIds(newSelected);
+    };
+
+    const handleSelectAll = () => {
+        if (selectedIds.size === filteredCategories.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(filteredCategories.map(r => r.id)));
+        }
+    };
+
+    const handleBatchDelete = async () => {
+        if (selectedIds.size === 0) {
+            alert('Vui lòng chọn ít nhất một đánh giá để xóa');
+            return;
+        }
+
+        if (!confirm(`Bạn có chắc chắn muốn xóa ${selectedIds.size} đánh giá này không?`)) {
+            return;
+        }
+
+        try {
+            setIsSubmitting(true);
+            setError('');
+            
+            for (const id of selectedIds) {
+                await deleteReview(id);
+            }
+            
+            setSelectedIds(new Set());
+            await fetchReviews();
+            alert(`Xóa ${selectedIds.size} đánh giá thành công!`);
+        } catch (err) {
+            console.error('Error batch deleting reviews:', err);
+            setError('Không thể xóa đánh giá');
+            alert('Lỗi: Không thể xóa đánh giá');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     const filteredCategories = review.filter((review) =>
-        review.comment.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        review.bookId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        review.userId.toLowerCase().includes(searchQuery.toLowerCase())
+        review.bookName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        review.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        review.content.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     const columns = [
-        { key: 'bookId', header: 'ID sách' },
-        { key: 'userId', header: 'ID người dùng' },
+        { 
+            key: 'select',
+            header: '☑',
+            render: (review: Review) => (
+                <input
+                    type="checkbox"
+                    checked={selectedIds.has(review.id)}
+                    onChange={() => handleSelectItem(review.id)}
+                    className="w-4 h-4"
+                />
+            )
+        },
+        { key: 'bookName', header: 'Tên sách' },
+        { key: 'userName', header: 'Tên người dùng' },
         { 
             key: 'rating', 
-            header: 'Đánh giá',
+            header: 'Số sao',
             render: (review: Review) => (
                 <div className="flex items-center gap-1">
                     <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
@@ -202,67 +288,10 @@ export default function ReviewManagement() {
             key: 'comment', 
             header: 'Bình luận',
             render: (review: Review) => (
-                <div className="max-w-xs truncate" title={review.comment}>
-                    {review.comment}
+                <div className="max-w-xs truncate" title={review.content}>
+                    {review.content}
                 </div>
             )
-        },
-        {
-            key: 'status',
-            header: 'Trạng thái',
-            render: (review: Review) => (
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    review.status === 'approved' 
-                        ? 'bg-green-100 text-green-700'
-                        : review.status === 'rejected'
-                        ? 'bg-red-100 text-red-700'
-                        : 'bg-yellow-100 text-yellow-700'
-                }`}>
-                    {review.status === 'approved' ? 'Được chấp thuận' : review.status === 'rejected' ? 'Bị từ chối' : 'Đang chờ'}
-                </span>
-            )
-        },
-        {
-            key: 'actions',
-            header: 'Hành động',
-            render: (rev: Review) => (
-                <div className="flex gap-2">
-                    {rev.status === 'pending' && (
-                        <>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleApprove(rev.id)}
-                                className="text-green-600 hover:text-green-700"
-                            >
-                                <CheckCircle className="w-4 h-4" />
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleReject(rev.id)}
-                                className="text-red-600 hover:text-red-700"
-                            >
-                                <XCircle className="w-4 h-4" />
-                            </Button>
-                        </>
-                    )}
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleOpenModal(rev)}
-                    >
-                        <Edit2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(rev.id)}
-                    >
-                        <Trash2 className="w-4 h-4 text-red-500" />
-                    </Button>
-                </div>
-            ),
         },
     ];
 
@@ -277,10 +306,21 @@ export default function ReviewManagement() {
                     <h1 className="text-3xl font-bold text-gray-900">Quản lý đánh giá</h1>
                     <p className="text-gray-600 mt-1">Quản lý đánh giá sách</p>
                 </div>
-                <Button onClick={() => handleOpenModal()}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Thêm đánh giá
-                </Button>
+                <div className="flex gap-2">
+                    {selectedIds.size > 0 && (
+                        <Button 
+                            onClick={handleBatchDelete}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Xóa ({selectedIds.size})
+                        </Button>
+                    )}
+                    <Button onClick={() => handleOpenModal()}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Thêm đánh giá
+                    </Button>
+                </div>
             </div>
 
             {error && (
@@ -291,12 +331,70 @@ export default function ReviewManagement() {
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <Input
-                    placeholder="Tìm đánh giá theo bình luận, ID sách hoặc ID người dùng..."
+                    placeholder="Tìm đánh giá theo tên sách, tên người dùng hoặc bình luận..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="mb-4"
                 />
+                <div className="mb-4 flex items-center gap-2">
+                    <input
+                        type="checkbox"
+                        id="selectAll"
+                        checked={selectedIds.size === filteredCategories.length && filteredCategories.length > 0}
+                        onChange={handleSelectAll}
+                        className="w-4 h-4"
+                    />
+                    <label htmlFor="selectAll" className="text-sm text-gray-600">
+                        Chọn tất cả ({filteredCategories.length})
+                    </label>
+                </div>
                 <Table columns={columns} data={filteredCategories} />
+                
+                <div className="mt-6 flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    Tổng cộng: <span className="font-medium">{totalItems}</span> đánh giá
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <select
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(parseInt(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="5">5 / trang</option>
+                      <option value="10">10 / trang</option>
+                      <option value="20">20 / trang</option>
+                      <option value="50">50 / trang</option>
+                    </select>
+                    
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                        disabled={currentPage === 1 || isLoading}
+                      >
+                        Trước
+                      </Button>
+                      
+                      <div className="flex items-center gap-1 px-3 py-2">
+                        <span className="text-sm font-medium">Trang {currentPage} / {totalPages}</span>
+                      </div>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                        disabled={currentPage === totalPages || isLoading}
+                      >
+                        Tiếp
+                      </Button>
+                    </div>
+                  </div>
+                </div>
             </div>
 
             <Modal
