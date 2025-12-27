@@ -104,3 +104,14 @@ export const payFine = async (id: number): Promise<LoanResponse> => {
     throw error;
   }
 };
+
+// Cancel loan (for pending loans)
+export const cancelLoan = async (id: number): Promise<LoanResponse> => {
+  try {
+    const response = await axiosInstance.delete(`/api/Loan/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error canceling loan:', error);
+    throw error;
+  }
+};

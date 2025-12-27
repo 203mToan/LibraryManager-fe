@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -12,6 +12,9 @@ import LoansManagement from './pages/manager/LoansManagement';
 
 import BrowseBooks from './pages/borrower/BrowseBooks';
 import MyLoans from './pages/borrower/MyLoans';
+import MyReviews from './pages/borrower/MyReviews';
+import FavoriteBooks from './pages/borrower/FavoriteBooks';
+import BookDetailPage from './pages/BookDetailPage';
 import CategorieManagement from './pages/manager/CategorieManagement';
 import ReviewManagement from './pages/manager/ReviewManagement';
 import UserManagement from './pages/manager/UserManagement';
@@ -22,6 +25,16 @@ function MainApp() {
     user?.role === 'manager' ? 'dashboard' : 'browse'
   );
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+
+  // Parse URL to check for book detail route
+  const bookDetailMatch = useMemo(() => {
+    const pathname = window.location.pathname;
+    const match = pathname.match(/^\/books\/(\d+)$/);
+    if (match) {
+      return match[1]; // Return book ID
+    }
+    return null;
+  }, []);
 
   if (isLoading) {
     return (
@@ -43,6 +56,12 @@ function MainApp() {
   }
 
   const renderView = () => {
+    // Nếu click menu sidebar, ưu tiên render view mới thay vì BookDetailPage
+    // Chỉ show BookDetailPage khi currentView là browse (default) và URL là /books/:id
+    if (bookDetailMatch && user?.role === 'borrower' && currentView === 'browse') {
+      return <BookDetailPage bookId={parseInt(bookDetailMatch, 10)} />;
+    }
+
     if (user.role === 'manager') {
       switch (currentView) {
         case 'dashboard':
@@ -76,12 +95,9 @@ function MainApp() {
         case 'my-loans':
           return <MyLoans />;
         case 'my-reviews':
-          return (
-            <div className="p-6">
-              <h1 className="text-3xl font-bold">Đánh giá của tôi</h1>
-              <p className="text-gray-600 mt-2">Quản lý đánh giá sách của bạn (Sắp ra mắt)</p>
-            </div>
-          );
+          return <MyReviews />;
+        case 'favorites':
+          return <FavoriteBooks />;
         case 'profile':
           return (
             <div className="p-6">

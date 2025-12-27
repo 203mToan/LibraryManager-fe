@@ -84,16 +84,11 @@ export const getReviewById = async (id: string): Promise<ReviewResponse> => {
 // Create new review
 export const createReview = async (payload: ReviewPayload): Promise<ReviewResponse> => {
   try {
-    const params = new URLSearchParams();
-    params.append('BookId', payload.bookId);
-    params.append('UserId', payload.userId);
-    params.append('Rating', payload.rating.toString());
-    params.append('Comment', payload.comment);
-    if (payload.status) {
-      params.append('Status', payload.status);
-    }
-
-    const response = await axiosInstance.post(`/api/comment?${params.toString()}`, null);
+    const response = await axiosInstance.post('/api/comment', {
+      bookId: parseInt(payload.bookId),
+      rating: payload.rating,
+      comment: payload.comment,
+    });
     return response.data;
   } catch (error) {
     console.error('Error creating review:', error);
@@ -104,26 +99,10 @@ export const createReview = async (payload: ReviewPayload): Promise<ReviewRespon
 // Update review
 export const updateReview = async (id: string, payload: Partial<ReviewPayload>): Promise<ReviewResponse> => {
   try {
-    const params = new URLSearchParams();
-    params.append('Id', id);
-    
-    if (payload.bookId) {
-      params.append('BookId', payload.bookId);
-    }
-    if (payload.userId) {
-      params.append('UserId', payload.userId);
-    }
-    if (payload.rating !== undefined) {
-      params.append('Rating', payload.rating.toString());
-    }
-    if (payload.comment) {
-      params.append('Comment', payload.comment);
-    }
-    if (payload.status) {
-      params.append('Status', payload.status);
-    }
-
-    const response = await axiosInstance.put(`/api/comment?${params.toString()}`, null);
+    const response = await axiosInstance.put(`/api/comment/${id}`, {
+      rating: payload.rating,
+      comment: payload.comment,
+    });
     return response.data;
   } catch (error) {
     console.error('Error updating review:', error);

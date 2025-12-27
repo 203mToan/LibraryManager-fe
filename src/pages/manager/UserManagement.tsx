@@ -24,6 +24,7 @@ export default function UserManagement() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
     const [formData, setFormData] = useState({
         name: '',

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Search, Book as BookIcon } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Search, Book as BookIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface Book {
@@ -30,6 +30,7 @@ import { getAllCategories, CategoryResponse } from '../../service/categoryServic
 
 export default function BrowseBooks() {
   const { user } = useAuth();
+  const bookIdToOpen = new URLSearchParams(window.location.search).get('bookId');
   const [books, setBooks] = useState<Book[]>([]);
   const [loans, setLoans] = useState<LoanResponse[]>([]);
   const [authors, setAuthors] = useState<AuthorResponse[]>([]);
@@ -43,11 +44,26 @@ export default function BrowseBooks() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [allLoans, setAllLoans] = useState<LoanResponse[]>([]);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [scrollPosition, setScrollPosition] = useState(0);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
 
   // Fetch books and loans on mount
   useEffect(() => {
     fetchInitialData();
   }, []);
+
+  // Open book if bookIdToOpen is provided
+  useEffect(() => {
+    if (bookIdToOpen && books.length > 0) {
+      const bookToOpen = books.find((b) => b.id === bookIdToOpen);
+      if (bookToOpen) {
+        setSelectedBook(bookToOpen);
+      }
+    }
+  }, [bookIdToOpen, books]);
 
   const fetchInitialData = async () => {
     try {
@@ -79,11 +95,19 @@ export default function BrowseBooks() {
 
       // Fetch categories
       const categoriesResponse = await getAllCategories(1, 100);
-      setCategories(categoriesResponse.items || []);
+      const categoriesData = categoriesResponse.items || [];
+      setCategories(categoriesData);
+      console.log('Categories loaded:', categoriesData);
 
       // Fetch user's loans
       const myLoans = await getMyLoans();
       setLoans(myLoans);
+
+      // Fetch all loans for featured books calculation
+      const allLoansResponse = await getAllBooks(1, 500);
+      const allLoansData = allLoansResponse.items || [];
+      setAllLoans(allLoansData);
+      console.log('All books for featured:', allLoansData.length);
     } catch (err) {
       console.error('Failed to fetch data:', err);
       setError('Không thể tải dữ liệu');
@@ -93,7 +117,27 @@ export default function BrowseBooks() {
   };
 
   const handleSelectBook = (book: Book) => {
-    setSelectedBook(book);
+    window.location.href = `/books/${book.id}`;
+  };
+
+  const scrollCarousel = (direction: 'left' | 'right') => {
+    if (carouselRef.current) {
+      const scrollAmount = 176; // item width (160px) + gap (16px)
+      if (direction === 'left') {
+        carouselRef.current.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+      } else {
+        carouselRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+      }
+    }
+  };
+
+  const handleCarouselScroll = () => {
+    if (carouselRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = carouselRef.current;
+      setScrollPosition(scrollLeft);
+      setCanScrollLeft(scrollLeft > 0);
+      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
+    }
   };
 
   const handleRequestLoan = async () => {
@@ -146,6 +190,27 @@ export default function BrowseBooks() {
     );
   };
 
+  // Get featured books (top 10 most borrowed)
+  const getFeaturedBooks = () => {
+    const bookLoanCount: Record<string, number> = {};
+    
+    // Count loans for each book
+    (allLoans || []).forEach((loan: any) => {
+      if (loan.bookId) {
+        bookLoanCount[loan.bookId] = (bookLoanCount[loan.bookId] || 0) + 1;
+      }
+    });
+
+    // Sort books by loan count and get top 10
+    return books
+      .sort((a, b) => {
+        const aCount = bookLoanCount[a.id] || 0;
+        const bCount = bookLoanCount[b.id] || 0;
+        return bCount - aCount;
+      })
+      .slice(0, 10);
+  };
+
   let filteredBooks = books.filter((book) => {
     const author = authors.find((a) => a.id === book.authorId);
     const matchesSearch =
@@ -153,10 +218,15 @@ export default function BrowseBooks() {
       author?.fullName.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesCategory =
-      categoryFilter === 'all' || book.categoryId === categoryFilter;
+      categoryFilter === 'all' || categoryFilter === '' || book.categoryId === categoryFilter;
 
     return matchesSearch && matchesCategory;
   });
+
+  // Debug log
+  if (categoryFilter !== 'all' && categoryFilter !== '') {
+    console.log('Filtering by category:', categoryFilter, 'Found:', filteredBooks.length, 'books');
+  }
 
   filteredBooks = filteredBooks.sort((a, b) => {
     if (sortBy === 'title') return a.title.localeCompare(b.title);
@@ -166,10 +236,12 @@ export default function BrowseBooks() {
   });
 
   // Get unique categories from books
-  const categoryOptions = categories.map((cat) => ({
-    value: cat.id,
-    label: cat.name,
-  }));
+  const categoryOptions = categories && categories.length > 0 
+    ? categories.map((cat) => ({
+        value: cat.id,
+        label: cat.name,
+      }))
+    : [];
 
   return (
     <div className="space-y-6">
@@ -184,7 +256,85 @@ export default function BrowseBooks() {
         </div>
       )}
 
+      {/* Featured Books Section - Carousel */}
+      {!isLoading && (
+        <div className="space-y-3">
+          <h2 className="text-2xl font-bold text-gray-900">📚 Top 10 Sách Nổi Bật</h2>
+          <div className="relative bg-gradient-to-r from-teal-50 to-blue-50 rounded-xl p-4 border border-teal-100">
+            {/* Left Arrow Button */}
+            {canScrollLeft && (
+              <button
+                onClick={() => scrollCarousel('left')}
+                className="absolute left-2 top-1/2 transform -translate-y-1/2 z-10 bg-white rounded-full p-2 shadow-md hover:shadow-lg transition-shadow hover:bg-teal-50"
+              >
+                <ChevronLeft className="w-5 h-5 text-teal-600" />
+              </button>
+            )}
+
+            {/* Carousel Wrapper - Shows exactly 5 items */}
+            <div className="mx-8">
+              {/* Carousel Container */}
+              <div
+                ref={carouselRef}
+                className="flex gap-4 scroll-smooth pb-2 overflow-x-hidden"
+                onScroll={handleCarouselScroll}
+                style={{ scrollBehavior: 'smooth' }}
+              >
+                {getFeaturedBooks().map((book) => {
+                  const author = authors.find((a) => a.id === book.authorId);
+                  const category = categories.find((c) => c.id === book.categoryId);
+                  const isAvailable = book.available > 0;
+
+                  return (
+                    <motion.div
+                      key={book.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex-shrink-0 w-40 bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
+                      onClick={() => handleSelectBook(book)}
+                    >
+                      <img
+                        src={book.coverUrl || 'https://via.placeholder.com/160x240'}
+                        alt={book.title}
+                        className="w-full h-48 object-cover"
+                      />
+                      <div className="p-3">
+                        <h3 className="font-semibold text-gray-900 line-clamp-2 text-sm mb-1">
+                          {book.title}
+                        </h3>
+                        <p className="text-xs text-gray-600 line-clamp-1 mb-2">{author?.fullName}</p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500">{category?.name}</span>
+                          <span
+                            className={`text-xs font-medium ${isAvailable ? 'text-green-600' : 'text-red-600'
+                              }`}
+                          >
+                            {isAvailable ? `${book.available}` : '0'}
+                          </span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Right Arrow Button */}
+            {canScrollRight && (
+              <button
+                onClick={() => scrollCarousel('right')}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 z-10 bg-white rounded-full p-2 shadow-md hover:shadow-lg transition-shadow hover:bg-teal-50"
+              >
+                <ChevronRight className="w-5 h-5 text-teal-600" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* All Books Section with Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Tất cả sách</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="md:col-span-1">
             <div className="relative">
@@ -205,7 +355,10 @@ export default function BrowseBooks() {
               ...categoryOptions,
             ]}
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            onChange={(e) => {
+              console.log('Category filter changed to:', e.target.value);
+              setCategoryFilter(e.target.value);
+            }}
           />
 
           <Select

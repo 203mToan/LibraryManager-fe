@@ -6,6 +6,7 @@ interface Column<T> {
   key: string;
   header: string;
   render?: (item: T) => ReactNode;
+  align?: 'left' | 'center' | 'right';
 }
 
 interface TableProps<T> {
@@ -32,7 +33,13 @@ export default function Table<T extends Record<string, any>>({
               {columns.map((column) => (
                 <th
                   key={column.key}
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                    column.align === 'center'
+                      ? 'text-center'
+                      : column.align === 'right'
+                      ? 'text-right'
+                      : 'text-left'
+                  }`}
                 >
                   {column.header}
                 </th>
@@ -58,7 +65,13 @@ export default function Table<T extends Record<string, any>>({
                   {columns.map((column) => (
                     <td
                       key={column.key}
-                      className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
+                      className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${
+                        column.align === 'center'
+                          ? 'text-center'
+                          : column.align === 'right'
+                          ? 'text-right'
+                          : 'text-left'
+                      }`}
                     >
                       {column.render
                         ? column.render(item)

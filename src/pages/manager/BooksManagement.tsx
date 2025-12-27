@@ -300,7 +300,7 @@ export default function BooksManagement() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setViewBook(book)}
+            onClick={() => (window.location.href = `/books/${book.id}`)}
           >
             <Eye className="w-4 h-4" />
           </Button>
